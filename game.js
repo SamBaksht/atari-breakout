@@ -18,9 +18,10 @@ class Game {
         this.direction = 0; // paddle direction & speed
 
         this.bricks = [];
-        for(let layer = 4; layer >= 0; layer--) {
+        for(let layer = 0; layer < 5; layer++) { 
+            this.bricks[layer] = [];
             for(let gridNumber = 0; gridNumber < 10; gridNumber++) {
-                this.bricks.push(new Brick(layer, gridNumber))
+                this.bricks[layer][gridNumber] = new Brick(layer, gridNumber);
             }
         }
         const keys = new Set();
@@ -57,8 +58,10 @@ class Game {
         ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
         this.paddle.move(this.direction);
         this.paddle.update()
-        for(let brick of this.bricks) {
-            brick.draw()
+        for(let layer = 0; layer < this.bricks.length; layer++) {
+            for(let rowNumber = 0; rowNumber < this.bricks[layer].length; rowNumber++) {
+                this.bricks[layer][rowNumber].draw()
+            }
         }
         this.ball.update(this.bricks, this.paddle);
     }
@@ -128,24 +131,27 @@ class Ball {
         }
 
         // Start checking brick collisions
-        for(let brick of bricks) {
-            // Calculate start of xPixel Pos (e.x, starts at 100 pixels)
-            const brickStartXPixelPosition = brick.gridNumber * (gameCanvas.width / 10);
-            // Calculate where it ends (e.x, ends at pixel 110)
-            const brickEndXPixelPosition = brickStartXPixelPosition + brick.brickWidth;
-            // Checks if it falls with the range (e.x, 100-110);
-            const ballWithinXBrickRange = ballXPixelPosition > brickStartXPixelPosition && ballXPixelPosition < brickEndXPixelPosition;
-            
-            const brickStartYPixelPosition = brick.gridLayer * (gameCanvas.height / 10);
-            const brickEndYPixelPosition = brickStartYPixelPosition + brick.brickHeight;
-            const ballWithinYBrickRange = brickStartYPixelPosition < ballYPixelPostion && ballYPixelPostion < brickEndYPixelPosition;
+        for(let layer = 0; layer < bricks.length; layer++) {
+            for(let rowNumber = 0; rowNumber < bricks[layer].length; rowNumber++) {
+                const brick = bricks[layer][rowNumber];
+                // Calculate start of xPixel Pos (e.x, starts at 100 pixels)
+                const brickStartXPixelPosition = brick.gridNumber * (gameCanvas.width / 10);
+                // Calculate where it ends (e.x, ends at pixel 110)
+                const brickEndXPixelPosition = brickStartXPixelPosition + brick.brickWidth;
+                // Checks if it falls with the range (e.x, 100-110);
+                const ballWithinXBrickRange = ballXPixelPosition > brickStartXPixelPosition && ballXPixelPosition < brickEndXPixelPosition;
+                
+                const brickStartYPixelPosition = brick.gridLayer * (gameCanvas.height / 10);
+                const brickEndYPixelPosition = brickStartYPixelPosition + brick.brickHeight;
+                const ballWithinYBrickRange = brickStartYPixelPosition < ballYPixelPostion && ballYPixelPostion < brickEndYPixelPosition;
 
-            // console.log(`X: ${ballWithinXBrickRange} | Y: ${ballWithinYBrickRange}`)
-            if(ballWithinXBrickRange && ballWithinYBrickRange) { // Check if it falls within x range
-                this.yDirection *= -1;
-                this.xDirection *= -1;
-                brick.hit();
-            }
+                // console.log(`X: ${ballWithinXBrickRange} | Y: ${ballWithinYBrickRange}`)
+                if(ballWithinXBrickRange && ballWithinYBrickRange) { // Check if it falls within x range
+                    this.yDirection *= -1;
+                    this.xDirection *= -1;
+                    brick.hit();
+                }
+        }
         }
 
         if(this.yPosition >= 1 || this.yPosition <= 0) { // IF OVER TOP / BOTTOM OF SCREN
@@ -182,9 +188,9 @@ class Ball {
  
 class Brick {
 static colors = ["#FF0000", "#9999FF", "#6666FF", "#3333FF", "#0000FF"];
-    constructor(hitPoints, gridNumber) {
-        this.hitPoints = hitPoints;
-        this.gridLayer = hitPoints;
+    constructor(layer, gridNumber) {
+        this.hitPoints = layer + 1;
+        this.gridLayer = layer;
         this.gridNumber = gridNumber;
 
     }
@@ -195,6 +201,9 @@ static colors = ["#FF0000", "#9999FF", "#6666FF", "#3333FF", "#0000FF"];
     }
 
     draw() {
+        if(this.hitPoints == 0) {
+            return;
+        }
         const xPixelPosition = this.gridNumber * (gameCanvas.width / 10);
         const yPixelPosition = this.gridLayer * (gameCanvas.height / 10);
         this.brickHeight = gameCanvas.height * 0.05;
