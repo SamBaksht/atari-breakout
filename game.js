@@ -118,14 +118,25 @@ class Ball {
 
 
         if(withinXRange && withinYRange) {
-            console.log("Hit paddle!")
             const middleOfPaddlePixel = (paddleStartXPixelPosition + paddleEndXPixelPosition) / 2;
-            if(middleOfPaddlePixel < ballXPixelPosition && this.xDirection < 0) { // Means ball hit right side of paddle and direction is going left
-                this.xDirection *= -1;
-                console.log("Passed");
+            if(middleOfPaddlePixel < ballXPixelPosition) { // Means ball hit right side of paddle
+                if(this.xDirection < 0) {// ball going left
+                    this.xDirection *= -1;
+                }
+                this.xDirection *= 1;
+                console.log("Hit Right!")
+
+                this.randomSlopeRise = 0.08 * ((ballXPixelPosition - middleOfPaddlePixel) / (paddleEndXPixelPosition - middleOfPaddlePixel)) + 0.002;
+                this.randomSlopeRun = (0.08 - this.randomSlopeRise) + 0.004;
             }
-            if(middleOfPaddlePixel > ballXPixelPosition && this.xDirection > 0) { // Means ball hit left side of paddle and direction is going right
-                this.xDirection *= -1;
+            if(middleOfPaddlePixel > ballXPixelPosition) { // Means ball hit left side of paddle and direction is going right
+                console.log("Hit Left!")
+                if(this.xDirection > 0) { // ball going right 
+                    this.xDirection *= -1; 
+                }
+                this.randomSlopeRise = 0.008 * ((ballXPixelPosition - paddleStartXPixelPosition) / (middleOfPaddlePixel - paddleStartXPixelPosition));
+                this.randomSlopeRun = 0.008 - this.randomSlopeRise;
+                this.xDirection *= 1
             }
             this.yDirection *= -1;
         }
@@ -134,6 +145,9 @@ class Ball {
         for(let layer = 0; layer < bricks.length; layer++) {
             for(let rowNumber = 0; rowNumber < bricks[layer].length; rowNumber++) {
                 const brick = bricks[layer][rowNumber];
+                if (brick.hitPoints < 0) {
+                    continue;
+                }
                 // Calculate start of xPixel Pos (e.x, starts at 100 pixels)
                 const brickStartXPixelPosition = brick.gridNumber * (gameCanvas.width / 10);
                 // Calculate where it ends (e.x, ends at pixel 110)
@@ -148,7 +162,7 @@ class Ball {
                 // console.log(`X: ${ballWithinXBrickRange} | Y: ${ballWithinYBrickRange}`)
                 if(ballWithinXBrickRange && ballWithinYBrickRange) { // Check if it falls within x range
                     this.yDirection *= -1;
-                    this.xDirection *= -1;
+                    // this.xDirection *= -1;
                     brick.hit();
                 }
         }
@@ -187,9 +201,9 @@ class Ball {
 }
  
 class Brick {
-static colors = ["#FF0000", "#9999FF", "#6666FF", "#3333FF", "#0000FF"];
+static colors = ["#C0C0FF", "#9999FF", "#6666FF", "#3333FF", "#0000FF"];
     constructor(layer, gridNumber) {
-        this.hitPoints = layer + 1;
+        this.hitPoints = 4 - layer;
         this.gridLayer = layer;
         this.gridNumber = gridNumber;
 
@@ -201,7 +215,7 @@ static colors = ["#FF0000", "#9999FF", "#6666FF", "#3333FF", "#0000FF"];
     }
 
     draw() {
-        if(this.hitPoints == 0) {
+        if(this.hitPoints < 0) {
             return;
         }
         const xPixelPosition = this.gridNumber * (gameCanvas.width / 10);
@@ -217,13 +231,13 @@ static colors = ["#FF0000", "#9999FF", "#6666FF", "#3333FF", "#0000FF"];
             this.brickWidth,
             this.brickHeight
         );
-        ctx.fillStyle = "yellow";
-        ctx.fillRect(
-            xPixelPosition,
-            yPixelPosition,
-            20,
-            this.brickHeight
-        );
+        // ctx.fillStyle = "yellow";
+        // ctx.fillRect(
+        //     xPixelPosition,
+        //     yPixelPosition,
+        //     20,
+        //     this.brickHeight
+        // );
         ctx.closePath();
         return;
     }
