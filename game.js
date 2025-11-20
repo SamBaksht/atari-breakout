@@ -114,7 +114,7 @@ class Ball {
         // Calculate if the balls falls within the Y pixel range of the paddle
         const paddleStartYPixelPosition = paddle.yPixelPosition;
         const paddleEndYPixelPosition = paddleStartYPixelPosition + paddle.paddleHeight;
-        const withinYRange = (paddleStartYPixelPosition < ballYPixelPostion) && (paddleEndYPixelPosition > ballYPixelPostion);
+        const withinYRange = (paddleStartYPixelPosition < ballYPixelPostion + this.radius) && (paddleEndYPixelPosition > ballYPixelPostion + this.radius);
 
 
         if(withinXRange && withinYRange) {
@@ -126,16 +126,16 @@ class Ball {
                 this.xDirection *= 1;
                 console.log("Hit Right!")
 
-                this.randomSlopeRise = 0.08 * ((ballXPixelPosition - middleOfPaddlePixel) / (paddleEndXPixelPosition - middleOfPaddlePixel)) + 0.002;
-                this.randomSlopeRun = (0.08 - this.randomSlopeRise) + 0.004;
+                this.randomSlopeRise = 0.008 * ((ballXPixelPosition - middleOfPaddlePixel) / (paddleEndXPixelPosition - middleOfPaddlePixel)) + 0.002;
+                this.randomSlopeRun = (0.008 - this.randomSlopeRise) + 0.004;
             }
-            if(middleOfPaddlePixel > ballXPixelPosition) { // Means ball hit left side of paddle and direction is going right
+            if(middleOfPaddlePixel > ballXPixelPosition) { // Means ball hit left side of paddle 
                 console.log("Hit Left!")
                 if(this.xDirection > 0) { // ball going right 
                     this.xDirection *= -1; 
                 }
-                this.randomSlopeRise = 0.008 * ((ballXPixelPosition - paddleStartXPixelPosition) / (middleOfPaddlePixel - paddleStartXPixelPosition));
-                this.randomSlopeRun = 0.008 - this.randomSlopeRise;
+                this.randomSlopeRise = 0.008 * ((ballXPixelPosition - paddleStartXPixelPosition) / (middleOfPaddlePixel - paddleStartXPixelPosition)) + 0.002;
+                this.randomSlopeRun = (0.008 - this.randomSlopeRise) + 0.004;
                 this.xDirection *= 1
             }
             this.yDirection *= -1;
@@ -149,18 +149,22 @@ class Ball {
                     continue;
                 }
                 // Calculate start of xPixel Pos (e.x, starts at 100 pixels)
-                const brickStartXPixelPosition = brick.gridNumber * (gameCanvas.width / 10);
+                const brickStartXPixelPosition = brick.xPixelPosition;
                 // Calculate where it ends (e.x, ends at pixel 110)
                 const brickEndXPixelPosition = brickStartXPixelPosition + brick.brickWidth;
                 // Checks if it falls with the range (e.x, 100-110);
                 const ballWithinXBrickRange = ballXPixelPosition > brickStartXPixelPosition && ballXPixelPosition < brickEndXPixelPosition;
                 
-                const brickStartYPixelPosition = brick.gridLayer * (gameCanvas.height / 10);
+                const brickStartYPixelPosition = brick.yPixelPosition;
                 const brickEndYPixelPosition = brickStartYPixelPosition + brick.brickHeight;
-                const ballWithinYBrickRange = brickStartYPixelPosition < ballYPixelPostion && ballYPixelPostion < brickEndYPixelPosition;
+                const ballWithinYBrickRange = brickStartYPixelPosition < ballYPixelPostion - this.radius && ballYPixelPostion - this.radius < brickEndYPixelPosition;
 
                 // console.log(`X: ${ballWithinXBrickRange} | Y: ${ballWithinYBrickRange}`)
                 if(ballWithinXBrickRange && ballWithinYBrickRange) { // Check if it falls within x range
+                    const hitSide = ballYPixelPostion - this.radius > brickStartYPixelPosition + 10 && ballYPixelPostion - this.radius < brickEndYPixelPosition + 10
+                    if(hitSide) {
+                        this.xDirection *= -1;
+                    }
                     this.yDirection *= -1;
                     // this.xDirection *= -1;
                     brick.hit();
@@ -186,12 +190,13 @@ class Ball {
     draw() {
         const xPixelPosition = this.xPosition * gameCanvas.width;
         const yPixelPosition = this.yPosition * gameCanvas.height;
+        this.radius = gameCanvas.width * 0.01;
         ctx.beginPath();
         ctx.fillStyle = 'white';
         ctx.arc(
             xPixelPosition,
             yPixelPosition,
-            gameCanvas.width * 0.01,
+            this.radius,
             0,
             Math.PI * 2
         )
@@ -218,16 +223,21 @@ static colors = ["#C0C0FF", "#9999FF", "#6666FF", "#3333FF", "#0000FF"];
         if(this.hitPoints < 0) {
             return;
         }
-        const xPixelPosition = this.gridNumber * (gameCanvas.width / 10);
-        const yPixelPosition = this.gridLayer * (gameCanvas.height / 10);
-        this.brickHeight = gameCanvas.height * 0.05;
-        this.brickWidth = gameCanvas.width * 0.08;
+        const Q1Percent = (gameCanvas.width * 0.2);
+        const Q3Percent = (gameCanvas.width * 0.6) + Q1Percent;
+        const QuartilePixelRange = Q3Percent - Q1Percent;
+        this.xPixelPosition = this.gridNumber * (QuartilePixelRange / 10) + Q1Percent;
+        
+        const marginOf10 = gameCanvas.height * 0.1; 
+        this.yPixelPosition = marginOf10 + ((gameCanvas.height / 20)* this.gridLayer)
+        this.brickHeight = gameCanvas.height * 0.045;
+        this.brickWidth = gameCanvas.width * 0.055;
 
         ctx.beginPath();
         ctx.fillStyle = Brick.colors[this.hitPoints];
         ctx.fillRect(
-            xPixelPosition,
-            yPixelPosition,
+            this.xPixelPosition,
+            this.yPixelPosition,
             this.brickWidth,
             this.brickHeight
         );
