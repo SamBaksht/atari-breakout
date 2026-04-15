@@ -157,14 +157,14 @@ class Ball {
                 
                 const brickStartYPixelPosition = brick.yPixelPosition;
                 const brickEndYPixelPosition = brickStartYPixelPosition + brick.brickHeight;
-                const ballWithinYBrickRange = brickStartYPixelPosition < ballYPixelPostion - this.radius && ballYPixelPostion - this.radius < brickEndYPixelPosition;
+                const ballWithinYBrickRange = brickStartYPixelPosition < ballYPixelPostion && ballYPixelPostion < brickEndYPixelPosition;
 
                 // console.log(`X: ${ballWithinXBrickRange} | Y: ${ballWithinYBrickRange}`)
                 if(ballWithinXBrickRange && ballWithinYBrickRange) { // Check if it falls within x range
-                    const hitSide = ballYPixelPostion - this.radius > brickStartYPixelPosition + 10 && ballYPixelPostion - this.radius < brickEndYPixelPosition + 10
-                    if(hitSide) {
-                        this.xDirection *= -1;
-                    }
+                    // const hitSide = ballYPixelPostion - this.radius > brickStartYPixelPosition + 10 && ballYPixelPostion - this.radius < brickEndYPixelPosition + 10
+                    // if(hitSide) {
+                    //     this.xDirection *= -1;
+                    // }
                     this.yDirection *= -1;
                     // this.xDirection *= -1;
                     brick.hit();
