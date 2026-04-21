@@ -1,5 +1,5 @@
 import { isMobile, handleResize } from "./utils.js";
-
+import Network from "./brain.js";
 
 const gameCanvas = document.createElement("canvas");
 gameCanvas.style = "position: fixed;";
@@ -26,27 +26,27 @@ class Game {
         }
         const keys = new Set();
 
-        window.addEventListener("keydown", (event) => {
-            keys.add(event.key);
-            this.updateDirection();
-        });
+        // window.addEventListener("keydown", (event) => {
+        //     keys.add(event.key);
+        //     this.updateDirection();
+        // });
 
-        window.addEventListener("keyup", (event) => {
-            keys.delete(event.key);
-            this.updateDirection();
-        });
+        // window.addEventListener("keyup", (event) => {
+        //     keys.delete(event.key);
+        //     this.updateDirection();
+        // });
 
-        this.updateDirection = () => {
-            if (keys.has("ArrowLeft") && !keys.has("ArrowRight")) {
-                this.paddle.shouldMove = true;
-                this.direction = -0.015;
-            } else if (keys.has("ArrowRight") && !keys.has("ArrowLeft")) {
-                this.paddle.shouldMove = true;
-                this.direction = 0.015;
-            } else {
-                this.paddle.stop();
-            }
-        };
+        // this.updateDirection = () => {
+        //     if (keys.has("ArrowLeft") && !keys.has("ArrowRight")) {
+        //         this.paddle.shouldMove = true;
+        //         this.direction = -0.015;
+        //     } else if (keys.has("ArrowRight") && !keys.has("ArrowLeft")) {
+        //         this.paddle.shouldMove = true;
+        //         this.direction = 0.015;
+        //     } else {
+        //         this.paddle.stop();
+        //     }
+        // };
         this.ball = new Ball()
     }
 
@@ -56,14 +56,19 @@ class Game {
         gameCanvas.height = height;
 
         ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
-        this.paddle.move(this.direction);
-        this.paddle.update()
+        this.paddle.update();
         for(let layer = 0; layer < this.bricks.length; layer++) {
             for(let rowNumber = 0; rowNumber < this.bricks[layer].length; rowNumber++) {
                 this.bricks[layer][rowNumber].draw()
             }
         }
         this.ball.update(this.bricks, this.paddle);
+
+        this.paddle.decide(this.ball, this.bricks)
+    }
+
+    ballFailure() {
+        this.ball = new Ball();
     }
 }
 
@@ -80,8 +85,7 @@ class Ball {
         // We want a max run of 0.01 and a min of 0.002 -> rise will depend on the x (min 0.002)
         this.randomSlopeRun = (Math.random() * 0.008) + 0.002;
         this.randomSlopeRise = (0.01 - this.randomSlopeRun) + 0.002;
-
-
+        this.radius = gameCanvas.width * 0.01;
     }
     
     update(bricks, paddle) {
@@ -99,6 +103,10 @@ class Ball {
         }
 
         this.draw()
+    }
+
+    resetBall() {
+        game.ballFailure();
     }
 
     checkCollision(bricks, paddle) {
@@ -153,30 +161,35 @@ class Ball {
                 // Calculate where it ends (e.x, ends at pixel 110)
                 const brickEndXPixelPosition = brickStartXPixelPosition + brick.brickWidth;
                 // Checks if it falls with the range (e.x, 100-110);
-                const ballWithinXBrickRange = ballXPixelPosition > brickStartXPixelPosition && ballXPixelPosition < brickEndXPixelPosition;
+                const ballWithinXBrickRange = ballXPixelPosition + this.radius > brickStartXPixelPosition && ballXPixelPosition - this.radius < brickEndXPixelPosition;
                 
                 const brickStartYPixelPosition = brick.yPixelPosition;
                 const brickEndYPixelPosition = brickStartYPixelPosition + brick.brickHeight;
-                const ballWithinYBrickRange = brickStartYPixelPosition < ballYPixelPostion && ballYPixelPostion < brickEndYPixelPosition;
+                const ballWithinYBrickRange = brickStartYPixelPosition < ballYPixelPostion + this.radius && ballYPixelPostion - this.radius < brickEndYPixelPosition;
 
                 // console.log(`X: ${ballWithinXBrickRange} | Y: ${ballWithinYBrickRange}`)
                 if(ballWithinXBrickRange && ballWithinYBrickRange) { // Check if it falls within x range
-                    // const hitSide = ballYPixelPostion - this.radius > brickStartYPixelPosition + 10 && ballYPixelPostion - this.radius < brickEndYPixelPosition + 10
-                    // if(hitSide) {
-                    //     this.xDirection *= -1;
-                    // }
-                    this.yDirection *= -1;
+                    const hitSide = ballYPixelPostion - this.radius > brickStartYPixelPosition + 3  && ballYPixelPostion + this.radius < brickEndYPixelPosition -3 // the +- 3 is a pixel buffer
+                    if(hitSide) {
+                        this.xDirection *= -1;
+                    } else {
+                        this.yDirection *= -1;
+                    }
                     // this.xDirection *= -1;
                     brick.hit();
                 }
         }
         }
 
-        if(this.yPosition >= 1 || this.yPosition <= 0) { // IF OVER TOP / BOTTOM OF SCREN
+        if(this.yPosition <= 0) { // IF OVER TOP (need to add radius check)
             this.yDirection *= -1;
             console.log(`New Y Dir: ${this.yDirection} | Y POS: ${this.yPosition}`)
             return true;
-        } 
+        }
+        if(this.yPosition >= 1) { // IF OVER BOTTOM 
+            this.resetBall();
+            return true;
+        }
         if(this.xPosition >= 1 || this.xPosition <= 0) { // IF OVER LEFT / RIGHT OF SCREEN
             this.xDirection *= -1;
             return true;
@@ -190,7 +203,6 @@ class Ball {
     draw() {
         const xPixelPosition = this.xPosition * gameCanvas.width;
         const yPixelPosition = this.yPosition * gameCanvas.height;
-        this.radius = gameCanvas.width * 0.01;
         ctx.beginPath();
         ctx.fillStyle = 'white';
         ctx.arc(
@@ -223,15 +235,17 @@ static colors = ["#C0C0FF", "#9999FF", "#6666FF", "#3333FF", "#0000FF"];
         if(this.hitPoints < 0) {
             return;
         }
-        const Q1Percent = (gameCanvas.width * 0.2);
-        const Q3Percent = (gameCanvas.width * 0.6) + Q1Percent;
-        const QuartilePixelRange = Q3Percent - Q1Percent;
-        this.xPixelPosition = this.gridNumber * (QuartilePixelRange / 10) + Q1Percent;
+        const Q1Percent = (gameCanvas.width * 0.1); // Define left limit 0.2
+        const Q3Percent = (gameCanvas.width * 0.8) + Q1Percent; // Define right limit 0.8
+        const QuartilePixelRange = Q3Percent - Q1Percent; // Bricks will go within this range
+        this.xPixelPosition = this.gridNumber * (QuartilePixelRange / 10) + Q1Percent; // 
+
+        // this.xPixelPostition = this.gridNumber * (gameCanvas.width / 10) ;
         
         const marginOf10 = gameCanvas.height * 0.1; 
         this.yPixelPosition = marginOf10 + ((gameCanvas.height / 20)* this.gridLayer)
         this.brickHeight = gameCanvas.height * 0.045;
-        this.brickWidth = gameCanvas.width * 0.055;
+        this.brickWidth = gameCanvas.width * 0.075;
 
         ctx.beginPath();
         ctx.fillStyle = Brick.colors[this.hitPoints];
@@ -262,19 +276,56 @@ class Paddle {
         this.paddleHeight = gameCanvas.height * 0.04;
         this.shouldMove = false;
 
+        this.moveSpeed = 0.015;
+        this.brain = new Network(8);
+
     }
     // Paddle = 0.45 
 
     move(direction) {
-        if(this.xPosition + direction > 0.04 && this.xPosition + direction < 0.96) { // Basically 
-            if(this.shouldMove) {
-                this.xPosition += direction;
+        if(this.xPosition + this.moveSpeed > 0.04 && this.xPosition + this.moveSpeed < 0.96) { // Basically
+            let multiplier = 1;
+            if(direction === "left") {
+                multiplier *= -1;
+            }
+                this.xPosition += this.moveSpeed * multiplier;
                 console.log(this.xPosition)
                 return;
             }
         }
-        this.stop();
+
+
+    decide(ball, bricks) {
+        // Initially lets just focus on ball state so we hit (not focused on accuracy atm)
+
+        /* State variables that are important :
+        Paddle xPos,
+        Ball xPos,
+        Ball yPos,
+        Ball X Direction (Left or Right).
+        Ball Y Direction (Up or Down)
+        Ball Slope Rise,
+        Ball Slope Run - Add Bricks later
+        
+        
+        */
+        const inputs = [this.xPosition, ball.xPosition, ball.yPosition, ball.xDirection, ball.yDirection, ball.randomSlopeRise, ball.randomSlopeRun];
+
+        const qValues = this.brain.decide(inputs);
+        console.log(qValues);
+
+        const bestAction = qValues.indexOf(Math.max(...qValues));
+
+        if(bestAction === 0) {
+            this.move("left")
+        } else if (bestAction === 1) {
+            // Do nothing
+        } else {
+            this.move("right")
+        }
+
     }
+
 
     stop() {
         this.shouldMove = false;
