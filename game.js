@@ -1,5 +1,6 @@
 import { isMobile, handleResize } from "./utils.js";
 import Network from "./brain.js";
+import Buffer from "./replayBuffer.js";
 
 const gameCanvas = document.createElement("canvas");
 gameCanvas.style = "position: fixed;";
@@ -43,7 +44,6 @@ class Game {
                 this.paddle.move("left")
             } else if (keys.has("ArrowRight") && !keys.has("ArrowLeft")) {
                 this.paddle.move("right")
-            } else {
             }
         };
         this.ball = new Ball()
@@ -290,6 +290,7 @@ class Paddle {
 
         this.moveSpeed = 0.015;
         this.brain = new Network();
+        this.replayBuffer = new Buffer();
 
     }
     // Paddle = 0.45 
@@ -344,7 +345,7 @@ class Paddle {
             done: done
         };
 
-        console.log(state);
+        this.replayBuffer.addIntoBuffer(state);
 
     }
 

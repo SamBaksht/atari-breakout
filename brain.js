@@ -1,5 +1,5 @@
 export default class Network { 
-// We're going to want to have x inputs, but we output three states 0 -> left, 1 -> stay, 2-> right
+// We're going to want to have 5 inputs, but we output three states 0 -> left, 1 -> stay, 2-> right
 
     
     constructor() { 
@@ -7,22 +7,13 @@ export default class Network {
     }
 
     decide(inputValues) {
-        // for (let layer of this.layers) {
-        //     inputValues = layer.compute(inputValues);
-        // }
-
         inputValues = this.layers[0].compute(inputValues); // Hidden Layer 1
         inputValues = this.layers[1].compute(inputValues) // Hidden Layer 2
         inputValues = this.layers[2].compute(inputValues) // Output Layer (3 Outputs)
 
         return inputValues;
     }
-
-    
-
-
 }
-
 
 class Layer {
     constructor(neurons, type) {
@@ -52,7 +43,7 @@ class Neuron {
     static createWeight() {
         return (Math.random() * 0.2) - 0.1 // -.1 to .1
     }
-    // ReLU for hidden layers, Linear for 
+    // ReLU for hidden layers (ReLU = we ignore negative numbers)
     process(inputs, type = "ReLU") {
         if(inputs.length > this.weights.length) {
             for(let i = 0; i < inputs.length; i++) {
