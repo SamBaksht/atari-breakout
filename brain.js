@@ -3,7 +3,6 @@ export default class Network {
 
     
     constructor() { 
-
         this.layers = [new Layer(64, "ReLU"), new Layer(64, "ReLU"), new Layer(3, "Linear")];
     }
 
@@ -37,7 +36,7 @@ class Layer {
     compute(inputValues) {
         return this.neurons.map(neuron => neuron.process(inputValues, this.type)); // The array of values from each neuron
         /* 
-        Hidden Layer 1: 8 inputs, 64 outputs
+        Hidden Layer 1: 5 inputs, 64 outputs
         Hidden Layer 2: 64 inputs, 64 outputs
         Output Layer: 64 inputs, 3 outputs.
         */
@@ -47,11 +46,11 @@ class Layer {
 class Neuron {
     constructor() {
         this.weights = []
-        this.bias = (Math.random() * 0.1) - 0.1; // Min -0.1, Max 0.1
+        this.bias = (Math.random() * 0.2) - 0.1; // Min -0.1, Max 0.1
     }
 
     static createWeight() {
-        return (Math.random() * 2) - 1 // -1 to 1
+        return (Math.random() * 0.2) - 0.1 // -.1 to .1
     }
     // ReLU for hidden layers, Linear for 
     process(inputs, type = "ReLU") {

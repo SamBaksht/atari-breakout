@@ -11,6 +11,8 @@ if(isMobile()) {
     console.log("This device is mobile")
 }
 
+const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
+
 class Game {
     constructor() {
         this.score = 0;
@@ -26,27 +28,24 @@ class Game {
         }
         const keys = new Set();
 
-        // window.addEventListener("keydown", (event) => {
-        //     keys.add(event.key);
-        //     this.updateDirection();
-        // });
+        window.addEventListener("keydown", (event) => {
+            keys.add(event.key);
+            this.updateDirection();
+        });
 
-        // window.addEventListener("keyup", (event) => {
-        //     keys.delete(event.key);
-        //     this.updateDirection();
-        // });
+        window.addEventListener("keyup", (event) => {
+            keys.delete(event.key);
+            this.updateDirection();
+        });
 
-        // this.updateDirection = () => {
-        //     if (keys.has("ArrowLeft") && !keys.has("ArrowRight")) {
-        //         this.paddle.shouldMove = true;
-        //         this.direction = -0.015;
-        //     } else if (keys.has("ArrowRight") && !keys.has("ArrowLeft")) {
-        //         this.paddle.shouldMove = true;
-        //         this.direction = 0.015;
-        //     } else {
-        //         this.paddle.stop();
-        //     }
-        // };
+        this.updateDirection = () => {
+            if (keys.has("ArrowLeft") && !keys.has("ArrowRight")) {
+                this.paddle.move("left")
+            } else if (keys.has("ArrowRight") && !keys.has("ArrowLeft")) {
+                this.paddle.move("right")
+            } else {
+            }
+        };
         this.ball = new Ball()
     }
 
@@ -62,9 +61,9 @@ class Game {
                 this.bricks[layer][rowNumber].draw()
             }
         }
-        this.ball.update(this.bricks, this.paddle);
-
         this.paddle.decide(this.ball, this.bricks)
+
+
     }
 
     ballFailure() {
@@ -76,33 +75,30 @@ class Ball {
     // static maxSpeed = 0.0065 - 0.0005; 
 
     constructor() {
-        this.gravity = 1;
-        this.horizontalVelocity = 0;
         this.xPosition = 0.5;
-        this.yPosition = 0.5; 
-        this.xDirection = (Math.random() * 2) - 1; // x > 0 means right, x < 0 means left
-        this.yDirection = -1;
-        // We want a max run of 0.01 and a min of 0.002 -> rise will depend on the x (min 0.002)
-        this.randomSlopeRun = (Math.random() * 0.008) + 0.002;
-        this.randomSlopeRise = (0.01 - this.randomSlopeRun) + 0.002;
+        this.yPosition = 0.5;
+        // We want a max rise of 0.01 and a min of -0.01 ; This needs to start as negative 
+        // When we start we set a default min of 0.3 rise
+        this.randomSlopeRise = clamp(Math.abs((Math.random() * 0.02) - 0.01), 0.003, 0.008) * -1;
+        // a max of 0.01 and min of -0.01
+
+        // -1 or 1 to determine start direction
+        const randInt = Math.random() < 0.5 ? -1 : 1;
+   
+        this.randomSlopeRun = (0.01 - Math.abs(this.randomSlopeRise)) * randInt;
         this.radius = gameCanvas.width * 0.01;
+
     }
     
     update(bricks, paddle) {
-        this.checkCollision(bricks, paddle);
+        let reward = this.checkCollision(bricks, paddle);
 
-        if(this.xDirection < 0) {
-            this.xPosition -= this.randomSlopeRun;
-        } else if (this.xDirection > 0) {
-            this.xPosition += this.randomSlopeRun;
-        }
-        if (this.yDirection <= 0) {
-            this.yPosition += this.randomSlopeRise;
-        } else if (this.yDirection > 0) {
-            this.yPosition -= this.randomSlopeRise;
-        }
+        this.xPosition += this.randomSlopeRun;
+        this.yPosition -= this.randomSlopeRise;
 
         this.draw()
+
+        return reward; 
     }
 
     resetBall() {
@@ -110,6 +106,8 @@ class Ball {
     }
 
     checkCollision(bricks, paddle) {
+        let reward = 0;
+        
         // Pixel coordinate points of the ball
         const ballXPixelPosition = this.xPosition * gameCanvas.width;
         const ballYPixelPostion = this.yPosition * gameCanvas.height;
@@ -128,10 +126,10 @@ class Ball {
         if(withinXRange && withinYRange) {
             const middleOfPaddlePixel = (paddleStartXPixelPosition + paddleEndXPixelPosition) / 2;
             if(middleOfPaddlePixel < ballXPixelPosition) { // Means ball hit right side of paddle
-                if(this.xDirection < 0) {// ball going left
-                    this.xDirection *= -1;
+                if(this.randomSlopeRun < 0) {// ball going left
+                    this.randomSlopeRun *= -1;
                 }
-                this.xDirection *= 1;
+                this.randomSlopeRun *= 1;
                 console.log("Hit Right!")
 
                 this.randomSlopeRise = 0.008 * ((ballXPixelPosition - middleOfPaddlePixel) / (paddleEndXPixelPosition - middleOfPaddlePixel)) + 0.002;
@@ -139,14 +137,16 @@ class Ball {
             }
             if(middleOfPaddlePixel > ballXPixelPosition) { // Means ball hit left side of paddle 
                 console.log("Hit Left!")
-                if(this.xDirection > 0) { // ball going right 
-                    this.xDirection *= -1; 
+                if(this.randomSlopeRun > 0) { // ball going right 
+                    this.randomSlopeRun *= -1; 
                 }
                 this.randomSlopeRise = 0.008 * ((ballXPixelPosition - paddleStartXPixelPosition) / (middleOfPaddlePixel - paddleStartXPixelPosition)) + 0.002;
                 this.randomSlopeRun = (0.008 - this.randomSlopeRise) + 0.004;
-                this.xDirection *= 1
+                this.randomSlopeRun *= 1
             }
-            this.yDirection *= -1;
+            // this.randomSlopeRise *= -1;
+
+            reward+=2;
         }
 
         // Start checking brick collisions
@@ -171,9 +171,9 @@ class Ball {
                 if(ballWithinXBrickRange && ballWithinYBrickRange) { // Check if it falls within x range
                     const hitSide = ballYPixelPostion - this.radius > brickStartYPixelPosition + 3  && ballYPixelPostion + this.radius < brickEndYPixelPosition -3 // the +- 3 is a pixel buffer
                     if(hitSide) {
-                        this.xDirection *= -1;
+                        this.randomSlopeRun *= -1;
                     } else {
-                        this.yDirection *= -1;
+                        this.randomSlopeRise *= -1;
                     }
                     // this.xDirection *= -1;
                     brick.hit();
@@ -181,24 +181,36 @@ class Ball {
         }
         }
 
-        if(this.yPosition <= 0) { // IF OVER TOP (need to add radius check)
-            this.yDirection *= -1;
+        if(this.yPosition - 0.01 <= 0) { // IF OVER TOP (need to add radius check)
+            this.randomSlopeRise *= -1;
             console.log(`New Y Dir: ${this.yDirection} | Y POS: ${this.yPosition}`)
-            return true;
         }
         if(this.yPosition >= 1) { // IF OVER BOTTOM 
+            reward -= 5
             this.resetBall();
-            return true;
         }
-        if(this.xPosition >= 1 || this.xPosition <= 0) { // IF OVER LEFT / RIGHT OF SCREEN
-            this.xDirection *= -1;
-            return true;
+        // includes radius
+        if(this.xPosition + 0.01 >= 1 || this.xPosition - 0.01 <= 0) { // IF OVER LEFT / RIGHT OF SCREEN
+            this.randomSlopeRun *= -1;
         }
-        return false;
+        return reward;
     }
 
-    adjustDirection() {
+    episodeOver(bricks) {
+        if(this.yPosition >= 1) { // IF OVER BOTTOM 
+            return true;
+        }
         
+        for (let layer = 0; layer < bricks.length; layer++) {
+            for (let row = 0; row < bricks[layer].length; row++) {
+                if (bricks[layer][row].hitPoints > 0) {
+                    return false;
+                }
+            }
+        }
+
+        return true; 
+
     }
     draw() {
         const xPixelPosition = this.xPosition * gameCanvas.width;
@@ -277,7 +289,7 @@ class Paddle {
         this.shouldMove = false;
 
         this.moveSpeed = 0.015;
-        this.brain = new Network(8);
+        this.brain = new Network();
 
     }
     // Paddle = 0.45 
@@ -289,7 +301,7 @@ class Paddle {
                 multiplier *= -1;
             }
                 this.xPosition += this.moveSpeed * multiplier;
-                console.log(this.xPosition)
+                //console.log(this.xPosition)
                 return;
             }
         }
@@ -299,33 +311,52 @@ class Paddle {
         // Initially lets just focus on ball state so we hit (not focused on accuracy atm)
 
         /* State variables that are important :
-        Paddle xPos,
-        Ball xPos,
-        Ball yPos,
-        Ball X Direction (Left or Right).
-        Ball Y Direction (Up or Down)
+        Paddle xPos, // 0-1
+        Ball xPos, // 0 - 1
+        Ball yPos, // 0 - 1
         Ball Slope Rise,
         Ball Slope Run - Add Bricks later
         
         
         */
-        const inputs = [this.xPosition, ball.xPosition, ball.yPosition, ball.xDirection, ball.yDirection, ball.randomSlopeRise, ball.randomSlopeRun];
+        const inputs = this.getState(ball);
 
         const qValues = this.brain.decide(inputs);
-        console.log(qValues);
+        //console.log(qValues);
 
         const bestAction = qValues.indexOf(Math.max(...qValues));
 
         if(bestAction === 0) {
-            this.move("left")
+            this.move("left");
         } else if (bestAction === 1) {
             // Do nothing
         } else {
-            this.move("right")
+            this.move("right");
         }
+
+        const reward = ball.update(bricks, this);
+        const done = ball.episodeOver(bricks);
+        const state = {
+            state: inputs,
+            action: bestAction,
+            reward: reward,
+            nextState: this.getState(ball),
+            done: done
+        };
+
+        console.log(state);
 
     }
 
+    getState(ball) {
+        return [
+            this.xPosition,
+            ball.xPosition,
+            ball.yPosition,
+            ball.randomSlopeRise / 0.01,
+            ball.randomSlopeRun / 0.01
+        ];
+    }
 
     stop() {
         this.shouldMove = false;
