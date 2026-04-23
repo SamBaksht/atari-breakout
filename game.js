@@ -7,6 +7,8 @@ gameCanvas.style = "position: fixed;";
 gameCanvas.width = window.innerWidth;
 gameCanvas.height = window.innerHeight;
 document.body.appendChild(gameCanvas);
+
+
 const ctx = gameCanvas.getContext("2d");
 if(isMobile()) {
     console.log("This device is mobile")
@@ -67,7 +69,7 @@ class Game {
     }
 
     ballFailure() {
-        this.ball = new Ball();
+        this.paddle.newEpisode();
     }
 }
 
@@ -75,6 +77,10 @@ class Ball {
     // static maxSpeed = 0.0065 - 0.0005; 
 
     constructor() {
+        this.setupBall()
+    }
+
+    setupBall() {
         this.xPosition = 0.5;
         this.yPosition = 0.5;
         // We want a max rise of 0.01 and a min of -0.01 ; This needs to start as negative 
@@ -87,7 +93,6 @@ class Ball {
    
         this.randomSlopeRun = (0.01 - Math.abs(this.randomSlopeRise)) * randInt;
         this.radius = gameCanvas.width * 0.01;
-
     }
     
     update(bricks, paddle) {
@@ -103,6 +108,7 @@ class Ball {
 
     resetBall() {
         game.ballFailure();
+        this.setupBall();
     }
 
     checkCollision(bricks, paddle) {
@@ -186,9 +192,7 @@ class Ball {
             console.log(`New Y Dir: ${this.yDirection} | Y POS: ${this.yPosition}`)
         }
         if(this.yPosition >= 1) { // IF OVER BOTTOM 
-            reward -= 5
-            this.resetBall();
-        }
+            reward -= 5        }
         // includes radius
         if(this.xPosition + 0.01 >= 1 || this.xPosition - 0.01 <= 0) { // IF OVER LEFT / RIGHT OF SCREEN
             this.randomSlopeRun *= -1;
@@ -198,6 +202,7 @@ class Ball {
 
     episodeOver(bricks) {
         if(this.yPosition >= 1) { // IF OVER BOTTOM 
+            this.resetBall();
             return true;
         }
         
@@ -291,12 +296,12 @@ class Paddle {
         this.moveSpeed = 0.015;
         this.brain = new Network();
         this.replayBuffer = new Buffer();
-
+        this.epsilon = 1; // Start with 100%, decrease by 1 each ep
     }
     // Paddle = 0.45 
 
-    move(direction) {
-        if(this.xPosition + this.moveSpeed > 0.04 && this.xPosition + this.moveSpeed < 0.96) { // Basically
+    move(direction) { // Need to adjust a little bit
+        if(this.xPosition - this.moveSpeed > 0.04 && this.xPosition + this.moveSpeed < 0.96) { // Basically
             let multiplier = 1;
             if(direction === "left") {
                 multiplier *= -1;
@@ -321,15 +326,21 @@ class Paddle {
         
         */
         const inputs = this.getState(ball);
-
+        
         const qValues = this.brain.decide(inputs);
         //console.log(qValues);
 
-        const bestAction = qValues.indexOf(Math.max(...qValues));
+        let chosenAction;
 
-        if(bestAction === 0) {
+        if(Math.random() > this.epsilon) { // IF we dont want to explore
+            chosenAction = qValues.indexOf(Math.max(...qValues)); // Best Action
+        } else {
+            chosenAction =Math.floor(Math.random() * qValues.length) // Random Action
+        }
+
+        if(chosenAction === 0) {
             this.move("left");
-        } else if (bestAction === 1) {
+        } else if (chosenAction === 1) {
             // Do nothing
         } else {
             this.move("right");
@@ -337,15 +348,15 @@ class Paddle {
 
         const reward = ball.update(bricks, this);
         const done = ball.episodeOver(bricks);
-        const state = {
+        const replay = {
             state: inputs,
-            action: bestAction,
+            action: chosenAction,
             reward: reward,
             nextState: this.getState(ball),
             done: done
         };
 
-        this.replayBuffer.addIntoBuffer(state);
+        this.replayBuffer.addIntoBuffer(replay);
 
     }
 
@@ -357,6 +368,11 @@ class Paddle {
             ball.randomSlopeRise / 0.01,
             ball.randomSlopeRun / 0.01
         ];
+    }
+
+    newEpisode() {
+        this.xPosition = 0.5;
+        this.epsilon = Math.max(0.05, this.epsilon-.01);
     }
 
     stop() {
