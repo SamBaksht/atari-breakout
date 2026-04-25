@@ -13,7 +13,14 @@ const ctx = gameCanvas.getContext("2d");
 if(isMobile()) {
     console.log("This device is mobile")
 }
+const originalConsoleError = console.error;
 
+console.error = function (...args) {
+  alert(args.map(String).join("\n"));
+
+  // Keep the original console behavior too
+  originalConsoleError.apply(console, args);
+};
 const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
 
 class Game {
@@ -64,8 +71,6 @@ class Game {
             }
         }
         this.paddle.decide(this.ball, this.bricks)
-
-
     }
 
     ballFailure() {
@@ -285,6 +290,8 @@ static colors = ["#C0C0FF", "#9999FF", "#6666FF", "#3333FF", "#0000FF"];
 }
 
 class Paddle {
+    static gemma = 0.95;
+    static decisionTicks = 0;
     constructor() {
         this.xPosition = 0.5; // Center Horizontally
         this.color = "blue";
@@ -298,18 +305,21 @@ class Paddle {
         this.replayBuffer = new Buffer();
         this.epsilon = 1; // Start with 100%, decrease by 1 each ep
     }
-    // Paddle = 0.45 
 
-    move(direction) { // Need to adjust a little bit
-        if(this.xPosition - this.moveSpeed > 0.04 && this.xPosition + this.moveSpeed < 0.96) { // Basically
+    move(direction) { 
+        if(this.xPosition - this.moveSpeed < 0.04 && direction === "left") {
+            return;
+        } else if (this.xPosition + this.moveSpeed > 0.96 && direction === "right") { 
+            return;
+        }
+            // Basically
             let multiplier = 1;
             if(direction === "left") {
                 multiplier *= -1;
-            }
+            } 
                 this.xPosition += this.moveSpeed * multiplier;
                 //console.log(this.xPosition)
                 return;
-            }
         }
 
 
@@ -325,6 +335,11 @@ class Paddle {
         
         
         */
+	//if (Paddle.decisionTicks % 4 !== 0) {
+	//Paddle.decisionTicks++;
+	//return;
+	//}
+
         const inputs = this.getState(ball);
         
         const qValues = this.brain.decide(inputs);
@@ -335,7 +350,7 @@ class Paddle {
         if(Math.random() > this.epsilon) { // IF we dont want to explore
             chosenAction = qValues.indexOf(Math.max(...qValues)); // Best Action
         } else {
-            chosenAction =Math.floor(Math.random() * qValues.length) // Random Action
+            chosenAction = Math.floor(Math.random() * qValues.length); // Random Action
         }
 
         if(chosenAction === 0) {
@@ -348,6 +363,15 @@ class Paddle {
 
         const reward = ball.update(bricks, this);
         const done = ball.episodeOver(bricks);
+	
+        if(done) {
+	    var target = reward;
+        } else {
+	    var nextState = this.getState(ball);
+	    var nextStateQValues = this.brain.decide(nextState);
+	    var bestQValue = Math.max(...qValues);
+	    var target = reward + Paddle.gemma + bestQValue;
+	}
         const replay = {
             state: inputs,
             action: chosenAction,
@@ -355,9 +379,10 @@ class Paddle {
             nextState: this.getState(ball),
             done: done
         };
-
-        this.replayBuffer.addIntoBuffer(replay);
-
+	const targetVector = [...qValues];
+	targetVector[nextStateQValues.indexOf(bestQValue)] = bestQValue;
+    this.replayBuffer.addIntoBuffer(replay);
+	Paddle.decisionTicks++; // Update tick at the end
     }
 
     getState(ball) {
