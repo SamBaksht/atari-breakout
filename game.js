@@ -245,7 +245,6 @@ static colors = ["#C0C0FF", "#9999FF", "#6666FF", "#3333FF", "#0000FF"];
         this.hitPoints = 4 - layer;
         this.gridLayer = layer;
         this.gridNumber = gridNumber;
-
     }
 
     hit() {
@@ -343,7 +342,6 @@ class Paddle {
         const inputs = this.getState(ball);
         
         const qValues = this.brain.decide(inputs);
-        //console.log(qValues);
 
         let chosenAction;
 
