@@ -3,10 +3,12 @@ import Network from "./brain.js";
 import Buffer from "./replayBuffer.js";
 
 const gameCanvas = document.createElement("canvas");
-gameCanvas.style = "position: fixed;";
+gameCanvas.style = "position: absolute;";
 gameCanvas.width = window.innerWidth;
 gameCanvas.height = window.innerHeight;
 document.body.appendChild(gameCanvas);
+
+
 
 
 const ctx = gameCanvas.getContext("2d");
@@ -58,11 +60,13 @@ class Game {
         this.ball = new Ball()
     }
 
-    update() {
-        const { mobile, width, height } = handleResize();
-        gameCanvas.width = width;
-        gameCanvas.height = height;
+    adjustSizes() {
+        gameCanvas.width = window.innerWidth;
+        gameCanvas.height = window.innerHeight;
 
+        console.log("Sizes Adjusted")
+    }
+    update() {
         ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
         this.paddle.update();
         for(let layer = 0; layer < this.bricks.length; layer++) {
@@ -74,6 +78,9 @@ class Game {
     }
 
     ballFailure() {
+        for (let brick of this.bricks.flat()) {
+            brick.reset();
+        }
         this.paddle.newEpisode();
     }
 }
@@ -118,6 +125,8 @@ class Ball {
 
     checkCollision(bricks, paddle) {
         let reward = 0;
+        this.radius = gameCanvas.width * 0.01;
+        
         
         // Pixel coordinate points of the ball
         const ballXPixelPosition = this.xPosition * gameCanvas.width;
@@ -140,7 +149,6 @@ class Ball {
                 if(this.randomSlopeRun < 0) {// ball going left
                     this.randomSlopeRun *= -1;
                 }
-                this.randomSlopeRun *= 1;
                 console.log("Hit Right!")
 
                 this.randomSlopeRise = 0.008 * ((ballXPixelPosition - middleOfPaddlePixel) / (paddleEndXPixelPosition - middleOfPaddlePixel)) + 0.002;
@@ -153,10 +161,9 @@ class Ball {
                 }
                 this.randomSlopeRise = 0.008 * ((ballXPixelPosition - paddleStartXPixelPosition) / (middleOfPaddlePixel - paddleStartXPixelPosition)) + 0.002;
                 this.randomSlopeRun = (0.008 - this.randomSlopeRise) + 0.004;
-                this.randomSlopeRun *= 1
             }
-            // this.randomSlopeRise *= -1;
-
+            
+            // The reward for hitting the paddle
             reward+=2;
         }
 
@@ -188,13 +195,15 @@ class Ball {
                     }
                     // this.xDirection *= -1;
                     brick.hit();
+
+                    reward += 5;
                 }
         }
         }
 
         if(this.yPosition - 0.01 <= 0) { // IF OVER TOP (need to add radius check)
             this.randomSlopeRise *= -1;
-            console.log(`New Y Dir: ${this.yDirection} | Y POS: ${this.yPosition}`)
+            console.log(`New Y Dir: ${(this.randomSlopeRise > 0 ? "Up" : "Down")} | Y POS: ${this.yPosition}`)
         }
         if(this.yPosition >= 1) { // IF OVER BOTTOM 
             reward -= 5        }
@@ -206,22 +215,13 @@ class Ball {
     }
 
     episodeOver(bricks) {
-        if(this.yPosition >= 1) { // IF OVER BOTTOM 
+        if (this.yPosition >= 1 || !bricks.flat().some(brick => brick.hitPoints > 0)) { // IF OVER BOTTOM or no bricks left with health
             this.resetBall();
             return true;
         }
-        
-        for (let layer = 0; layer < bricks.length; layer++) {
-            for (let row = 0; row < bricks[layer].length; row++) {
-                if (bricks[layer][row].hitPoints > 0) {
-                    return false;
-                }
-            }
-        }
-
-        return true; 
-
+        return false;
     }
+
     draw() {
         const xPixelPosition = this.xPosition * gameCanvas.width;
         const yPixelPosition = this.yPosition * gameCanvas.height;
@@ -250,6 +250,10 @@ static colors = ["#C0C0FF", "#9999FF", "#6666FF", "#3333FF", "#0000FF"];
     hit() {
         this.hitPoints--;
         return;
+    }
+
+    reset() {
+        this.hitPoints = 4 - this.gridLayer;
     }
 
     draw() {
@@ -290,7 +294,6 @@ static colors = ["#C0C0FF", "#9999FF", "#6666FF", "#3333FF", "#0000FF"];
 
 class Paddle {
     static gemma = 0.95;
-    static decisionTicks = 0;
     constructor() {
         this.xPosition = 0.5; // Center Horizontally
         this.color = "blue";
@@ -334,11 +337,6 @@ class Paddle {
         
         
         */
-	//if (Paddle.decisionTicks % 4 !== 0) {
-	//Paddle.decisionTicks++;
-	//return;
-	//}
-
         const inputs = this.getState(ball);
         
         const qValues = this.brain.decide(inputs);
@@ -354,7 +352,7 @@ class Paddle {
         if(chosenAction === 0) {
             this.move("left");
         } else if (chosenAction === 1) {
-            // Do nothing
+            // Do nothing (realistically if reward gets calculated based on following the ball this state wont really happen)
         } else {
             this.move("right");
         }
@@ -363,13 +361,15 @@ class Paddle {
         const done = ball.episodeOver(bricks);
 	
         if(done) {
-	    var target = reward;
+            // We do this because theres no future goal
+	        var target = reward;
         } else {
-	    var nextState = this.getState(ball);
-	    var nextStateQValues = this.brain.decide(nextState);
-	    var bestQValue = Math.max(...qValues);
-	    var target = reward + Paddle.gemma + bestQValue;
-	}
+            var nextState = this.getState(ball);
+            var nextStateQValues = this.brain.decide(nextState);
+            var bestQValue = Math.max(...nextStateQValues);
+            var target = reward + Paddle.gemma * bestQValue;
+	    }
+
         const replay = {
             state: inputs,
             action: chosenAction,
@@ -377,10 +377,9 @@ class Paddle {
             nextState: this.getState(ball),
             done: done
         };
-	const targetVector = [...qValues];
-	targetVector[nextStateQValues.indexOf(bestQValue)] = bestQValue;
+	// const targetVector = [...qValues];
+	// targetVector[nextStateQValues.indexOf(bestQValue)] = bestQValue;
     this.replayBuffer.addIntoBuffer(replay);
-	Paddle.decisionTicks++; // Update tick at the end
     }
 
     getState(ball) {
@@ -431,3 +430,5 @@ function loop() {
 }
 
 setInterval(() => loop(), 1000 / 60) // 60 FPS
+
+window.addEventListener("resize", () => {game.adjustSizes()});
