@@ -15,14 +15,7 @@ const ctx = gameCanvas.getContext("2d");
 if(isMobile()) {
     console.log("This device is mobile")
 }
-const originalConsoleError = console.error;
 
-console.error = function (...args) {
-  alert(args.map(String).join("\n"));
-
-  // Keep the original console behavior too
-  originalConsoleError.apply(console, args);
-};
 const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
 
 class Game {
@@ -109,7 +102,8 @@ class Ball {
     
     update(bricks, paddle) {
         let reward = this.checkCollision(bricks, paddle);
-
+        this.lastXPosition = this.xPosition;
+        this.lastYPosition = this.yPosition;
         this.xPosition += this.randomSlopeRun;
         this.yPosition -= this.randomSlopeRise;
 
@@ -130,7 +124,7 @@ class Ball {
         
         // Pixel coordinate points of the ball
         const ballXPixelPosition = this.xPosition * gameCanvas.width;
-        const ballYPixelPostion = this.yPosition * gameCanvas.height;
+        const ballYPixelPosition = this.yPosition * gameCanvas.height;
         
         // Calculate if the ball falls within the X pixel range of the paddle
         const paddleStartXPixelPosition = paddle.xPosition * gameCanvas.width - (paddle.paddleWidth / 2);
@@ -140,7 +134,7 @@ class Ball {
         // Calculate if the balls falls within the Y pixel range of the paddle
         const paddleStartYPixelPosition = paddle.yPixelPosition;
         const paddleEndYPixelPosition = paddleStartYPixelPosition + paddle.paddleHeight;
-        const withinYRange = (paddleStartYPixelPosition < ballYPixelPostion + this.radius) && (paddleEndYPixelPosition > ballYPixelPostion + this.radius);
+        const withinYRange = (paddleStartYPixelPosition < ballYPixelPosition + this.radius) && (paddleEndYPixelPosition > ballYPixelPosition + this.radius);
 
 
         if(withinXRange && withinYRange) {
@@ -169,11 +163,18 @@ class Ball {
 
         // Start checking brick collisions
         for(let layer = 0; layer < bricks.length; layer++) {
+            if(hitBrick) {
+                break;
+            }
             for(let rowNumber = 0; rowNumber < bricks[layer].length; rowNumber++) {
                 const brick = bricks[layer][rowNumber];
                 if (brick.hitPoints < 0) {
                     continue;
                 }
+                if(hitBrick) {
+                    break;
+                }
+
                 // Calculate start of xPixel Pos (e.x, starts at 100 pixels)
                 const brickStartXPixelPosition = brick.xPixelPosition;
                 // Calculate where it ends (e.x, ends at pixel 110)
@@ -183,22 +184,27 @@ class Ball {
                 
                 const brickStartYPixelPosition = brick.yPixelPosition;
                 const brickEndYPixelPosition = brickStartYPixelPosition + brick.brickHeight;
-                const ballWithinYBrickRange = brickStartYPixelPosition < ballYPixelPostion + this.radius && ballYPixelPostion - this.radius < brickEndYPixelPosition;
+                const ballWithinYBrickRange = brickStartYPixelPosition < ballYPixelPosition + this.radius && ballYPixelPosition - this.radius < brickEndYPixelPosition;
 
                 // console.log(`X: ${ballWithinXBrickRange} | Y: ${ballWithinYBrickRange}`)
                 if(ballWithinXBrickRange && ballWithinYBrickRange) { // Check if it falls within x range
-                    const hitSide = ballYPixelPostion - this.radius > brickStartYPixelPosition + 3  && ballYPixelPostion + this.radius < brickEndYPixelPosition -3 // the +- 3 is a pixel buffer
+                    const overlapY = (brickEndYPixelPosition - brickStartYPixelPosition) > (ballYPixelPosition - brickStartYPixelPosition) ? ballYPixelPosition - brickStartYPixelPosition : 0;
+                    const overlapX = (brickEndXPixelPosition - brickStartXPixelPosition) > ballXPixelPosition - brickStartXPixelPosition ? ballXPixelPosition - brickStartXPixelPosition : 0;
+                    const hitSide = overlapY > overlapX
+                    console.log(`overlap Y: ${overlapY} | overlap X: ${overlapX}`);
                     if(hitSide) {
                         this.randomSlopeRun *= -1;
+                        console.log("hit side");
                     } else {
+
                         this.randomSlopeRise *= -1;
                     }
                     // this.xDirection *= -1;
                     brick.hit();
-
+                    var hitBrick = true;
                     reward += 5;
                 }
-        }
+            }  
         }
 
         if(this.yPosition - 0.01 <= 0) { // IF OVER TOP (need to add radius check)
@@ -210,6 +216,8 @@ class Ball {
         // includes radius
         if(this.xPosition + 0.01 >= 1 || this.xPosition - 0.01 <= 0) { // IF OVER LEFT / RIGHT OF SCREEN
             this.randomSlopeRun *= -1;
+            this.xPosition = this.lastXPosition;
+            this.yPosition = this.lastYPosition; // To push it back into frame bc it gets stuck sometimes
         }
         return reward;
     }
@@ -272,6 +280,7 @@ static colors = ["#C0C0FF", "#9999FF", "#6666FF", "#3333FF", "#0000FF"];
         this.brickHeight = gameCanvas.height * 0.045;
         this.brickWidth = gameCanvas.width * 0.075;
 
+
         ctx.beginPath();
         ctx.fillStyle = Brick.colors[this.hitPoints];
         ctx.fillRect(
@@ -308,7 +317,15 @@ class Paddle {
         this.epsilon = 1; // Start with 100%, decrease by 1 each ep
     }
 
-    move(direction) { 
+    move(direction, ball) { 
+       const PHYSICS_TEST = false; // true means paddle will just follow the ball so we cant die
+       
+       if(PHYSICS_TEST) {
+        this.xPosition = ball.xPosition;
+        return;
+       }
+        
+        
         if(this.xPosition - this.moveSpeed < 0.04 && direction === "left") {
             return;
         } else if (this.xPosition + this.moveSpeed > 0.96 && direction === "right") { 
@@ -337,6 +354,7 @@ class Paddle {
         
         
         */
+
         const inputs = this.getState(ball);
         
         const qValues = this.brain.decide(inputs);
@@ -350,11 +368,11 @@ class Paddle {
         }
 
         if(chosenAction === 0) {
-            this.move("left");
+            this.move("left", ball);
         } else if (chosenAction === 1) {
             // Do nothing (realistically if reward gets calculated based on following the ball this state wont really happen)
         } else {
-            this.move("right");
+            this.move("right", ball);
         }
 
         const reward = ball.update(bricks, this);
